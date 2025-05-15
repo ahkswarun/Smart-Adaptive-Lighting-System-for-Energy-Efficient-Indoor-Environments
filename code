@@ -1,0 +1,93 @@
+// Pin configuration
+const int LDR_PIN = A0;      // LDR sensor connected to analog pin A0
+const int PIR_PIN = 2;       // PIR sensor connected to digital pin 2
+const int TRIG_PIN = 3;      // Ultrasonic sensor TRIG pin
+const int ECHO_PIN = 4;      // Ultrasonic sensor ECHO pin
+const int IR_PIN = 5;        // IR sensor connected to digital pin 5
+const int POT_UP_PIN = 6;    // X9C103S Digital Potentiometer Increment pin
+const int POT_DOWN_PIN = 7;  // X9C103S Digital Potentiometer Up/Down pin
+const int CS_PIN = 8;        // X9C103S Digital Potentiometer Chip Select pin
+const int LED_PIN = 9;       // LED connected to digital pin 9
+
+// Variables
+int ldrValue = 0;
+int pirState = LOW;
+long duration;
+int distance;
+int occupancyCount = 0;
+int targetBrightness = 0;
+
+void setup() {
+  pinMode(LDR_PIN, INPUT);
+  pinMode(PIR_PIN, INPUT);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(IR_PIN, INPUT);
+  pinMode(POT_UP_PIN, OUTPUT);
+  pinMode(POT_DOWN_PIN, OUTPUT);
+  pinMode(CS_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
+
+  digitalWrite(CS_PIN, HIGH);  // Disable the potentiometer initially
+
+  Serial.begin(9600);
+}
+
+void loop() {
+  // 1. Check ambient light level
+  ldrValue = analogRead(LDR_PIN);
+  Serial.print("Ambient Light: ");
+  Serial.println(ldrValue);
+
+  // 2. Detect motion using PIR sensor
+  pirState = digitalRead(PIR_PIN);
+  if (pirState == HIGH) {
+    Serial.println("Motion detected!");
+    targetBrightness = 255;  // Set brightness to maximum when motion is detected
+  } else {
+    targetBrightness = 0;  // Dim the lights when no motion is detected
+  }
+
+  // 3. Measure distance for occupancy using ultrasonic sensor
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+
+  duration = pulseIn(ECHO_PIN, HIGH);
+  distance = duration * 0.034 / 2;
+  Serial.print("Distance: ");
+  Serial.println(distance);
+
+  // Check if the room is occupied based on IR sensor and distance readings
+  if (digitalRead(IR_PIN) == HIGH && distance < 200) {
+    Serial.println("Person detected in room!");
+    occupancyCount++;
+  } else {
+    occupancyCount = max(0, occupancyCount - 1);
+  }
+
+  // 4. Adjust brightness using the digital potentiometer (X9C103S)
+  adjustBrightness(targetBrightness);
+
+  delay(1000);  // delay for stability
+}
+
+void adjustBrightness(int brightness) {
+  digitalWrite(CS_PIN, LOW);  // Enable the potentiometer
+
+  if (brightness > 128) {
+    digitalWrite(POT_UP_PIN, HIGH);
+    delay(10);
+    digitalWrite(POT_UP_PIN, LOW);
+  } else {
+    digitalWrite(POT_DOWN_PIN, HIGH);
+    delay(10);
+    digitalWrite(POT_DOWN_PIN, LOW);
+  }
+
+  digitalWrite(CS_PIN, HIGH);  // Disable the potentiometer
+
+  analogWrite(LED_PIN, brightness);  // Set the LED brightness
+}
